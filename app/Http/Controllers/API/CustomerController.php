@@ -10,7 +10,7 @@ class CustomerController extends BaseController
 {
     public function index()
     {
-        return Customer::with(['creator', 'updater'])->paginate(20);
+        return Customer::with(['termsconditions', 'creator', 'updater'])->paginate(20);
     }
 
     public function store(Request $request)
@@ -38,7 +38,7 @@ class CustomerController extends BaseController
 
     public function show($id)
     {
-        return Customer::with(['creator', 'updater'])->findOrFail($id);
+        return Customer::with(['termsconditions', 'creator', 'updater'])->findOrFail($id);
     }
 
     public function update(Request $request, $id)

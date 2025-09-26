@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model
 {
@@ -21,6 +22,8 @@ class Customer extends Model
         'is_taxable',
         'requires_final_tax',
         'register_date',
+        'parent_customer',
+        'is_delivery_customer',
         'is_active',
         'created_by',
         'updated_by',
@@ -33,6 +36,16 @@ class Customer extends Model
         'payment_due_date' => 'date',
         'register_date' => 'date',
     ];
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'parent_customer');
+    }
+
+    public function termsconditions(): HasMany
+    {
+        return $this->hasMany(CustomerTermsCondition::class, 'customer_id');
+    }
 
     public function creator(): BelongsTo
     {

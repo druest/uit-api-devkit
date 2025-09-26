@@ -36,7 +36,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('unit/availableUnit', [UnitController::class, 'availableUnit']);
 
     //unit api resources
-    Route::get('expense/availableUnit', [ExpenseController::class, 'getOutstandingWOPayment']);
+    Route::get('expense/getOutstandingWOPayment', [ExpenseController::class, 'getOutstandingWOPayment']);
+    Route::get('expense/getCompanyAccounts', [ExpenseController::class, 'getCompanyAccounts']);
 
     //base api resources
     Route::apiResource('workorder', WorkOrderController::class);

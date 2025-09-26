@@ -27,6 +27,7 @@ class WorkOrder extends Model
         'completed_at',
         'created_by',
         'updated_by',
+        'payment_status'
     ];
 
     protected $casts = [
@@ -43,6 +44,11 @@ class WorkOrder extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(WorkOrderExpense::class);
+    }
+
+    public function workOrderEvents(): HasMany
+    {
+        return $this->hasMany(WorkOrderEvent::class);
     }
 
     public function otherExpenses(): HasMany

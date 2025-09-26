@@ -33,6 +33,17 @@ class WorkOrderController extends BaseController
 
     //     return response()->json($query->latest()->paginate(20));
     // }
+    public function canCreateDeliveryWO($id)
+    {
+        $getWO = WorkOrder::where('delivery_id', $id)->get();
+    }
+
+    private function checkDeliveryWO($id)
+    {
+        $getWO = WorkOrder::where('delivery_id', $id)->get();
+        return $getWO ? true : false;
+    }
+
     public function index()
     {
         return WorkOrder::with(['status', 'type', 'unit', 'driver', 'expenses', 'creator', 'updater'])->paginate(20);
@@ -69,6 +80,7 @@ class WorkOrderController extends BaseController
         ]);
 
         $workOrder = DB::transaction(function () use ($validated, $validatedExpense) {
+            $validated['payment_status'] = 'unpaid';
             $validated['created_by'] = auth()->id();
             $validated['assigned_at'] = now();
             $validated['code'] = $this->generateWorkOderCode(
@@ -105,7 +117,7 @@ class WorkOrderController extends BaseController
     public function show($id)
     {
         return WorkOrder::with([
-            'type', 'expenses.destinationExpense.expenseType', 'otherExpenses.expenseType',
+            'type', 'expenses.destinationExpense.expenseType', 'otherExpenses.expenseType', 'workOrderEvents', 'workOrderEvents.deliveryPhase', 'workOrderEvents.createdBy',
             'unit.vendor', 'driver', 'status', 'creator', 'updater'
         ])->findOrFail($id);
     }

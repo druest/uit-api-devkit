@@ -17,6 +17,8 @@ class DeliveryRoute extends Model
         'destination_id',
         'route_id',
         'amount',
+        'target_load_date',
+        'target_unload_date',
         'created_by',
         'updated_by',
     ];

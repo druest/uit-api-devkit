@@ -24,6 +24,11 @@ class Origin extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    public function city()
+    {
+        return $this->belongsTo(City::class, 'city_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

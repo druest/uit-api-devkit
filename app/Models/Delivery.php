@@ -14,6 +14,7 @@ class Delivery extends Model
         'customer_delivery_number',
         'customer_id',
         'delivery_type_id',
+        'is_use_secondary_pricing',
         'status_id',
         'created_by',
         'updated_by',
@@ -24,6 +25,11 @@ class Delivery extends Model
     public function workOrders(): HasMany
     {
         return $this->hasMany(WorkOrder::class);
+    }
+
+    public function termsconditions(): HasMany
+    {
+        return $this->hasMany(DeliveryTermsCondition::class);
     }
 
     public function deliveryType(): BelongsTo

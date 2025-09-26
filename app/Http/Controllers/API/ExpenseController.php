@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\CompanyAccount;
 use App\Models\DestinationExpense;
 use App\Models\ExpenseType;
 use App\Models\TrfExpenseOther;
@@ -11,26 +12,37 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderExpense;
 use App\Models\WorkOrderOtherExpense;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class ExpenseController extends BaseController
 {
-    public function getOutstandingWOPayment(): LengthAwarePaginator
+    public function getOutstandingWOPayment()
     {
         $expense = WorkOrder::query()
             ->whereIn('payment_status', ['unpaid', 'partial'])
-            ->with(['expenses:id,work_order_id,amount'])
-            ->orderByAsc('created_at')
+            ->with(['unit', 'driver', 'expenses:id,work_order_id,amount'])
+            ->orderBy('created_at', 'asc')
             ->paginate(20);
+
+        $expense->getCollection()->transform(function ($workOrder) {
+            $total = $workOrder->expenses->sum(function ($expense) {
+                return (float) $expense->amount;
+            });
+
+            $workOrder->total_expense = number_format($total, 2, '.', '');
+            return $workOrder;
+        });
 
         $expenseOther = WorkOrderOtherExpense::query()
             ->where('status', 'pending')
-            ->with(['workOrder:unit,driver', 'expenseType'])
-            ->orderByAsc('created_at')
+            ->with(['workOrder.unit', 'workOrder.driver', 'expenseType'])
+            ->orderBy('created_at', 'asc')
             ->paginate(20);
 
-        return $this->sendResponse([$expense => $expense, $expenseOther => $expenseOther], "Success");
+        return $this->sendResponse([
+            'expense' => $expense,
+            'expenseOther' => $expenseOther,
+        ], "Success");
     }
 
     public function submitExpense()
@@ -67,5 +79,21 @@ class ExpenseController extends BaseController
                 'data' => $expense,
             ], 201);
         });
+    }
+
+    public function paymentDeliveryExpense(Request $request)
+    {
+        $validated = $request->validate([
+            'work_order_other_expense_id' => 'required|exists:work_order_other_expenses,id',
+            'company_account_id' => 'required|exists:company_accounts,id',
+            'amount' => 'required|numeric|min:0',
+        ]);
+
+        $userId = auth()->id();
+    }
+
+    public function getCompanyAccounts()
+    {
+        return CompanyAccount::all();
     }
 }
