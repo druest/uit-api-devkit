@@ -9,9 +9,16 @@ class Driver extends Model
 {
     use HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'name',
         'nik',
+        'education',
+        'marriage_status',
+        'email',
+        'religion',
+        'joined_date',
         'birth_date',
         'address',
         'phone',
@@ -27,6 +34,8 @@ class Driver extends Model
         'bank_account_name',
         'status',
         'emergency_contact',
+        'emergency_name',
+        'emergency_relation',
         'notes',
         'created_by',
         'updated_by',
@@ -70,5 +79,10 @@ class Driver extends Model
     public function getFullBankInfoAttribute()
     {
         return "{$this->bank_name} - {$this->bank_account_number} ({$this->bank_account_name})";
+    }
+
+    public function driverGroupMappings()
+    {
+        return $this->hasMany(DriverGroupMapping::class, 'driver_id');
     }
 }

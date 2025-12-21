@@ -17,13 +17,14 @@ class Unit extends Model
         'plate_suffix',
         'ownership',
         'vendor_id',
-        'manufacturer',
+        'brand',
         'manufactured_year',
         'frame_number',
-        'machine_number',
+        'engine_number',
         'type',
-        'tire_count',
-        'bodywork',
+        'do_type',
+        'wheels',
+        'capacity',
         'color',
         'is_active',
         'length',
@@ -37,12 +38,14 @@ class Unit extends Model
         'insurance_expiry_date',
         'created_by',
         'updated_by',
+        'created_at',
+        'updated_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'manufactured_year' => 'integer',
-        'tire_count' => 'integer',
+        'wheels' => 'integer',
         'length' => 'float',
         'width' => 'float',
         'height' => 'float',
@@ -84,5 +87,10 @@ class Unit extends Model
     public function getDimensionsAttribute()
     {
         return "{$this->length}m x {$this->width}m x {$this->height}m";
+    }
+
+    public function unitGroupMappings()
+    {
+        return $this->hasMany(UnitGroupMapping::class, 'unit_id');
     }
 }

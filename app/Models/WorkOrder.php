@@ -16,18 +16,28 @@ class WorkOrder extends Model
         'work_order_type_id',
         'delivery_id',
         'unit_id',
+        'old_unit',
         'driver_id',
+        'secondary_driver_id',
         'bank_name',
         'bank_account_number',
         'bank_account_name',
         'work_order_status',
+        'old_driver',
+        'old_secondary_driver',
+        'change_notes',
         'notes',
+        'unit_notes',
+        'di_notes',
         'sla',
+        'is_fleet_unit',
+        'is_fleet_driver',
+        'is_fleet_second_driver',
         'assigned_at',
         'completed_at',
         'created_by',
         'updated_by',
-        'payment_status'
+        'payment_status',
     ];
 
     protected $casts = [
@@ -71,9 +81,30 @@ class WorkOrder extends Model
         return $this->belongsTo(Unit::class, 'unit_id');
     }
 
+    public function old_unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'old_unit');
+    }
+
+
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Driver::class, 'driver_id');
+    }
+
+    public function second_driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class, 'secondary_driver_id');
+    }
+
+    public function old_driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class, 'old_driver');
+    }
+
+    public function old_second_driver(): BelongsTo
+    {
+        return $this->belongsTo(Driver::class, 'old_secondary_driver');
     }
 
     public function status(): BelongsTo
@@ -89,5 +120,20 @@ class WorkOrder extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function vendorwo()
+    {
+        return $this->hasOne(VendorWorkOrder::class);
+    }
+
+    public function woCal()
+    {
+        return $this->hasOne(WorkOrderCalcExpense::class, 'work_order_id');
+    }
+
+    public function checkpoints()
+    {
+        return $this->hasOne(WorkOrderCheckpoint::class);
     }
 }

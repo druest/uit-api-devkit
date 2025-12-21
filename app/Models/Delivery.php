@@ -12,9 +12,14 @@ class Delivery extends Model
         'delivery_date',
         'delivery_code',
         'customer_delivery_number',
+        'confirmation_date',
         'customer_id',
         'delivery_type_id',
         'is_use_secondary_pricing',
+        'assignment_type',
+        'payment_type',
+        'payment_due_date',
+        'remarks',
         'status_id',
         'created_by',
         'updated_by',
@@ -30,6 +35,11 @@ class Delivery extends Model
     public function termsconditions(): HasMany
     {
         return $this->hasMany(DeliveryTermsCondition::class);
+    }
+
+    public function deliveryProblem(): HasMany
+    {
+        return $this->hasMany(DeliveryProblemNote::class);
     }
 
     public function deliveryType(): BelongsTo
@@ -59,6 +69,11 @@ class Delivery extends Model
 
     public function customer()
     {
-        return $this->belongsTo(customer::class);
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function deliveryPlan()
+    {
+        return $this->hasOne(DeliveryPlan::class, 'delivery_id');
     }
 }

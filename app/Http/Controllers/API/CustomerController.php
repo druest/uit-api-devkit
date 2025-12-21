@@ -38,7 +38,17 @@ class CustomerController extends BaseController
 
     public function show($id)
     {
-        return Customer::with(['termsconditions', 'creator', 'updater'])->findOrFail($id);
+        $customer = Customer::with([
+            'termsconditions',
+            'expenseParam',
+            'creator',
+            'updater',
+            'expenseParam',
+            'voucherUsages.voucher.origin',
+            'voucherUsages.voucher.destination'
+        ])->findOrFail($id);
+
+        return $this->sendResponse($customer, "Success");
     }
 
     public function update(Request $request, $id)

@@ -23,6 +23,7 @@ class WorkOrderEvent extends Model
         'pic',
         'status',
         'remarks',
+        'queue_number'
     ];
 
     public $timestamps = false;

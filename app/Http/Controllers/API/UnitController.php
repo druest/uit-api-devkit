@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\CityGroupMapping;
+use App\Models\DeliveryPlan;
 use App\Models\DriverUnitAssignment;
+use App\Models\RoutesVoucherUssage;
+use App\Models\RouteVoucher;
 use App\Models\Unit;
+use App\Models\UnitGroupMapping;
 use Illuminate\Http\Request;
 
 class UnitController extends BaseController
@@ -87,8 +92,82 @@ class UnitController extends BaseController
         ]);
     }
 
-    public function availableUnit()
+    public function availableUnit($type)
     {
-        return $this->sendResponse(DriverUnitAssignment::with(['unit.vendor', 'driver'])->get(), "Success");
+        if ($type == 'all') {
+            return $this->sendResponse(
+                DriverUnitAssignment::with(['unit.vendor', 'driver'])
+                    ->get(),
+                "Success"
+            );
+        }
+        return $this->sendResponse(
+            DriverUnitAssignment::with(['unit.vendor', 'driver'])
+                ->whereHas('unit', function ($query) use ($type) {
+                    $query->where('ownership', $type);
+                })
+                ->get(),
+            "Success"
+        );
+    }
+
+    public function unitByVendor($id)
+    {
+        return $this->sendResponse(
+            DriverUnitAssignment::with(['unit.vendor', 'driver'])
+                ->whereHas('unit', function ($query) use ($id) {
+                    $query->where('vendor_id', $id);
+                })
+                ->get(),
+            "Success"
+        );
+    }
+
+    public function getUnitAvailability($id, $voucher_id)
+    {
+        //$getUnavailUnit = DeliveryPlan::where('')->
+        $getOriginData = CityGroupMapping::where('city_id', $id)->firstOrFail();
+
+        $getUnitsGroup = UnitGroupMapping::with('unit.vendor')
+            ->where('group_id', $getOriginData->group_id)
+            ->get();
+
+        $units = $getUnitsGroup->pluck('unit');
+
+        $vendors = $units
+            ->pluck('vendor')
+            ->filter(fn ($vendor) => $vendor->id != 1)
+            ->unique('id')
+            ->values();
+
+        $owned = $units
+            ->where('ownership', 'owned')
+            ->values();
+
+        $rented = $units
+            ->where('ownership', 'rented')
+            ->values();
+
+        $vendors = $vendors->map(function ($vendor) use ($rented, $voucher_id) {
+            $getPricing = RoutesVoucherUssage::where([
+                'category'     => 'vendor',
+                'reference_id' => $vendor->id,
+                'voucher_id'   => $voucher_id
+            ])->first();
+
+            return [
+                'amount' => $getPricing ? $getPricing->amount : 0,
+                'id'     => $vendor->id,
+                'name'   => $vendor->name,
+                'units'  => $rented
+                    ->filter(fn ($e) => $e->vendor_id == $vendor->id)
+                    ->values(),
+            ];
+        });
+
+        return $this->sendResponse(
+            ['owned' => $owned, 'vendors' => $vendors],
+            "Success"
+        );
     }
 }

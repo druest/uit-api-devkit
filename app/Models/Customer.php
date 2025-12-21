@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Customer extends Model
 {
@@ -13,6 +14,8 @@ class Customer extends Model
 
     protected $fillable = [
         'name',
+        'service_category',
+        'customer_id',
         'code',
         'email',
         'tax_id_number',
@@ -20,6 +23,7 @@ class Customer extends Model
         'payment_due_date',
         'description',
         'is_taxable',
+        'requires_pph23',
         'requires_final_tax',
         'register_date',
         'parent_customer',
@@ -55,5 +59,16 @@ class Customer extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function expenseParam(): HasOne
+    {
+        return $this->hasOne(CustomerExpenseParam::class);
+    }
+
+    public function voucherUsages()
+    {
+        return $this->hasMany(RoutesVoucherUssage::class, 'reference_id')
+            ->where('category', 'customer');
     }
 }

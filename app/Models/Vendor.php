@@ -16,6 +16,7 @@ class Vendor extends Model
         'name',
         'code',
         'type',
+        'vendor_type',
         'phone',
         'email',
         'address',
@@ -61,5 +62,11 @@ class Vendor extends Model
     public function updater()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function voucherUsages()
+    {
+        return $this->hasMany(RoutesVoucherUssage::class, 'reference_id')
+            ->where('category', 'vendor');
     }
 }

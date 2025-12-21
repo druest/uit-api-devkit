@@ -20,7 +20,7 @@ class ExpenseController extends BaseController
     {
         $expense = WorkOrder::query()
             ->whereIn('payment_status', ['unpaid', 'partial'])
-            ->with(['unit', 'driver', 'expenses:id,work_order_id,amount'])
+            ->with(['unit', 'driver', 'expenses:id,work_order_id,amount', 'woCal'])
             ->orderBy('created_at', 'asc')
             ->paginate(20);
 
@@ -33,16 +33,7 @@ class ExpenseController extends BaseController
             return $workOrder;
         });
 
-        $expenseOther = WorkOrderOtherExpense::query()
-            ->where('status', 'pending')
-            ->with(['workOrder.unit', 'workOrder.driver', 'expenseType'])
-            ->orderBy('created_at', 'asc')
-            ->paginate(20);
-
-        return $this->sendResponse([
-            'expense' => $expense,
-            'expenseOther' => $expenseOther,
-        ], "Success");
+        return $this->sendResponse($expense, "Success");
     }
 
     public function submitExpense()
