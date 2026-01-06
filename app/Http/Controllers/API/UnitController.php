@@ -10,6 +10,7 @@ use App\Models\RoutesVoucherUssage;
 use App\Models\RouteVoucher;
 use App\Models\Unit;
 use App\Models\UnitGroupMapping;
+use App\Models\UnitPlanningWorksheet;
 use Illuminate\Http\Request;
 
 class UnitController extends BaseController
@@ -169,5 +170,12 @@ class UnitController extends BaseController
             ['owned' => $owned, 'vendors' => $vendors],
             "Success"
         );
+    }
+
+    public function getPlanningData($start_date, $end_date)
+    {
+        return UnitPlanningWorksheet::whereBetween('date', [$start_date, $end_date])
+            ->with('delivery')
+            ->get();
     }
 }

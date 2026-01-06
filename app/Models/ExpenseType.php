@@ -9,6 +9,10 @@ class ExpenseType extends Model
 {
     protected $fillable = [
         'name',
+        'label',
+        'sequence',
+        'is_di_config',
+        'is_other_expense',
         'created_by',
         'updated_by',
     ];

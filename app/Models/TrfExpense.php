@@ -13,6 +13,11 @@ class TrfExpense extends Model
         'work_order_id',
         'company_account_id',
         'amount',
+        'dr_bank_name',
+        'dr_account_number',
+        'dr_account_name',
+        'amount_in_words',
+        'transaction_date',
         'created_by',
         'updated_by',
     ];

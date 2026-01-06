@@ -7,30 +7,33 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class WorkOrderCalcExpense extends Model
 {
-    use HasFactory;
-
     protected $table = 'work_order_calc_expenses';
 
-    protected $primaryKey = 'id';
-
-    public $timestamps = false; // Since you're manually managing created_at
+    public $timestamps = false;
 
     protected $fillable = [
         'work_order_id',
-        'driver_fee',
-        'secondary_driver_fee',
-        'delivery_fuel_price',
-        'return_fuel_price',
-        'load_fee',
-        'unload_fee',
-        'additional_fee',
+        'expense_type_id',
+        'amount',
+        'amount_multi_origin_1',
+        'amount_multi_origin_2',
+        'amount_multi_dest_1',
+        'amount_multi_dest_2',
         'note',
-        'total',
-        'created_at',
         'created_by',
     ];
 
-    // Relationships (optional)
+    // Relationships
+    public function workOrder()
+    {
+        return $this->belongsTo(WorkOrder::class, 'work_order_id');
+    }
+
+    public function expenseType()
+    {
+        return $this->belongsTo(ExpenseType::class, 'expense_type_id');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');

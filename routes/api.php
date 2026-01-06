@@ -13,20 +13,21 @@ use App\Http\Controllers\API\LookupController;
 use App\Http\Controllers\API\UnitController;
 use App\Http\Controllers\API\VendorController;
 
+// RegisterController routes
 Route::controller(RegisterController::class)->group(function () {
     Route::post('register', 'register')->name('register');
     Route::post('login', 'login')->name('login');
+    Route::post('login/driver', 'driverLogin')->name('driver.login');
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    //delivery api resources
-    //getSummaryAR
-    //getSummaryAP
     Route::get('delivery/getSummaryAP', [DeliveryController::class, 'getSummaryAP']);
     Route::get('delivery/getSummaryAR', [DeliveryController::class, 'getSummaryAR']);
     Route::get('delivery/generateCityData', [DeliveryController::class, 'generateCityData']);
     Route::get('delivery/generateRouteData', [DeliveryController::class, 'generateRouteData']);
-    //generateRouteData
+
+    Route::get('delivery/getDeliveryTracker', [DeliveryController::class, 'getDeliveryTracker']);
+    Route::get('delivery/getOutStandingWaybill', [DeliveryController::class, 'getOutStandingWaybill']);
     Route::get('delivery/getOutstandingWorkOrder', [DeliveryController::class, 'getOutstandingWorkOrder']);
     Route::get('delivery/getOutstandingSubcontract', [DeliveryController::class, 'getOutstandingSubcontract']);
     Route::get('delivery/getOutStandingPlan', [DeliveryController::class, 'getOutStandingPlan']);
@@ -36,21 +37,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('delivery/updateSCSDate', [DeliveryController::class, 'updateSCSDate']);
     Route::post('delivery/updateDCSDate', [DeliveryController::class, 'updateDCSDate']);
     Route::post('delivery/updateFleetData', [DeliveryController::class, 'updateFleetData']);
-    //updateFleetData
     Route::get('delivery/deliveryTypes', [DeliveryController::class, 'deliveryTypes']);
     Route::get('delivery/{id}/routes', [DeliveryController::class, 'routes']);
+
+    Route::get('delivery/{id}/showForWaybill', [DeliveryController::class, 'showForWaybill']);
     Route::get('delivery/{id}/showForWO', [DeliveryController::class, 'showForWO']);
     Route::get('delivery/{id}/showForDI', [DeliveryController::class, 'showForDI']);
     Route::get('delivery/{id}/getByCustomer', [DeliveryController::class, 'getByCustomer']);
-    //deliveryType
-    //getByCustomer
-    //getRouteByCustomer
     Route::get('delivery/{id}/getRouteByCustomer', [DeliveryController::class, 'getRouteByCustomer']);
     Route::get('delivery/{id}/deliveryType', [DeliveryController::class, 'deliveryType']);
     Route::get('delivery/{id}/origins', [DeliveryController::class, 'origins']);
     Route::get('delivery/{id}/destinations', [DeliveryController::class, 'destinations']);
     Route::get('delivery/{id}/{typeID}/{customerID}/getDestinationPriceById', [DeliveryController::class, 'getDestinationPriceById']);
-
+    //getReports
+    //storeOtherDI
+    //selectOtherDI
+    //getAllOtherDI
+    //submitAcceptance
+    //getDeliveryByUserID
+    Route::get('workorder/getDeliveryByUserID', [WorkOrderController::class, 'getDeliveryByUserID']);
+    Route::post('workorder/submitAcceptance', [WorkOrderController::class, 'submitAcceptance']);
+    Route::get('workorder/getOutstandingOtherDI', [WorkOrderController::class, 'getOutstandingOtherDI']);
+    Route::get('workorder/getAllOtherDI', [WorkOrderController::class, 'getAllOtherDI']);
+    Route::get('workorder/{id}/selectOtherDI', [WorkOrderController::class, 'selectOtherDI']);
+    Route::post('workorder/storeOtherDI', [WorkOrderController::class, 'storeOtherDI']);
+    Route::get('workorder/getReports', [WorkOrderController::class, 'getReports']);
+    Route::get('workorder/{id}/getUJValues', [WorkOrderController::class, 'getUJValues']);
     Route::post('workorder/storeDeliveryProblem', [WorkOrderController::class, 'storeDeliveryProblem']);
     Route::post('workorder/storeDriverAction', [WorkOrderController::class, 'storeDriverAction']);
     Route::post('workorder/storeExternalWO', [WorkOrderController::class, 'storeExternalWO']);
@@ -65,6 +77,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('workorder/storeUpdatedExternalWO', [WorkOrderController::class, 'storeUpdatedExternalWO']);
     Route::get('workorder/{id}/getOutstandingOtherExpense', [WorkOrderController::class, 'getOutstandingOtherExpense']);
     Route::get('workorder/{id}/getTripPackageByDestinationID', [WorkOrderController::class, 'getTripPackageByDestinationID']);
+    Route::get('workorder/{id}/processUJ', [WorkOrderController::class, 'processUJ']);
+    //processUJ
+    //getPlanningData
+    Route::get('unit/{start_date}/{end_date}/getPlanningData', [UnitController::class, 'getPlanningData']);
     Route::get('unit/{id}/{voucher_id}/getUnitAvailability', [UnitController::class, 'getUnitAvailability']);
     Route::get('unit/{id}/unitByVendor', [UnitController::class, 'unitByVendor']);
     Route::get('unit/{type}/availableUnit', [UnitController::class, 'availableUnit']);
@@ -76,10 +92,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('driver/getAllOwned', [DriverController::class, 'getAllOwned']);
     //getAllOwned
     //unit api resources
+    //generateInvoice
+    Route::get('expense/generateInvoice', [ExpenseController::class, 'generateInvoice']);
     Route::get('expense/getOutstandingWOPayment', [ExpenseController::class, 'getOutstandingWOPayment']);
     Route::get('expense/getCompanyAccounts', [ExpenseController::class, 'getCompanyAccounts']);
-
+    Route::post('expense/submitExpense', [ExpenseController::class, 'submitExpense']);
+    //submitExpense
     //lookup
+    //listPhases
+    Route::get('lookup/listPhases', [LookupController::class, 'listPhases']);
     Route::get('lookup/getAllData', [LookupController::class, 'getAllData']);
     Route::get('lookup/{id}/routeVoucherByID', [LookupController::class, 'routeVoucherByID']);
     Route::get('lookup/{id}/getCustomerExpenseParam', [LookupController::class, 'getCustomerExpenseParam']);
@@ -90,8 +111,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('lookup/mappingSLA', [LookupController::class, 'mappingSLA']);
     Route::get('lookup/download/{filename}', [LookupController::class, 'download']);
     //storeCp
+    //uploadWaybill
+    Route::post('lookup/uploadWaybill', [LookupController::class, 'uploadWaybill']);
+    Route::post('lookup/storeWaybill', [LookupController::class, 'storeWaybill']);
+    Route::post('lookup/storeWaybillExpedition', [LookupController::class, 'storeWaybillExpedition']);
+    Route::post('lookup/storeWaybillTracker', [LookupController::class, 'storeWaybillTracker']);
+    Route::post('lookup/finalizeWaybill', [LookupController::class, 'finalizeWaybill']);
     Route::post('lookup/upload-base64', [LookupController::class, 'storeBase64']);
     Route::post('lookup/storeCp', [LookupController::class, 'storeCp']);
+    //updateReport
+    Route::post('lookup/updateReport', [LookupController::class, 'updateReport']);
+    Route::post('lookup/storeReport', [LookupController::class, 'storeReport']);
+    Route::put('lookup/updateCp/{id}', [LookupController::class, 'updateCp']);
+    //storeReport
     //mappingSLA
 
     //accounts

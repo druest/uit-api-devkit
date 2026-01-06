@@ -27,6 +27,7 @@ class WorkOrder extends Model
         'old_secondary_driver',
         'change_notes',
         'notes',
+        'uj_type',
         'unit_notes',
         'di_notes',
         'sla',
@@ -34,6 +35,7 @@ class WorkOrder extends Model
         'is_fleet_driver',
         'is_fleet_second_driver',
         'assigned_at',
+        'trf_available',
         'completed_at',
         'created_by',
         'updated_by',
@@ -129,11 +131,21 @@ class WorkOrder extends Model
 
     public function woCal()
     {
-        return $this->hasOne(WorkOrderCalcExpense::class, 'work_order_id');
+        return $this->hasMany(WorkOrderCalcExpense::class, 'work_order_id');
     }
 
     public function checkpoints()
     {
-        return $this->hasOne(WorkOrderCheckpoint::class);
+        return $this->hasMany(WorkOrderCheckpoint::class);
+    }
+
+    public function reports()
+    {
+        return $this->hasMany(WorkOrderReport::class);
+    }
+
+    public function acceptance()
+    {
+        return $this->hasOne(WorkOrderAcceptance::class, 'work_order_id');
     }
 }

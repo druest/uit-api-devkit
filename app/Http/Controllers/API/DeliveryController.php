@@ -21,6 +21,7 @@ use App\Models\DestinationExpense;
 use App\Models\DeliveryPlan;
 use App\Models\RoutesVoucherUssage;
 use App\Models\RouteVoucher;
+use App\Models\UnitPlanningWorksheet;
 use App\Models\VendorRoutePricing;
 use App\Models\WorkOrder;
 use Illuminate\Support\Facades\Validator;
@@ -144,12 +145,17 @@ class DeliveryController extends BaseController
     public function show($id)
     {
         $delivery = Delivery::with([
-            'customer', 'customer.parent', 'termsconditions', 'routes', 'routes.origin', 'routes.origin.city',  'routes.destination', 'routes.deliveryType', 'routes.destination.city', 'routes.route', 'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2', 'deliveryType', 'status', 'creator', 'updater', 'workOrders.type', 'workOrders.creator', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver', 'workOrders.workOrderEvents', 'workOrders.woCal'
+            'customer', 'customer.parent', 'termsconditions', 'routes', 'routes.origin', 'routes.origin.city',  'routes.destination', 'routes.deliveryType', 'routes.destination.city', 'routes.route', 'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2', 'deliveryType', 'status', 'creator', 'updater', 'workOrders.type', 'workOrders.creator', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver',  'workOrders.acceptance', 'workOrders.workOrderEvents', 'workOrders.woCal', 'workOrders.woCal.expenseType', 'workOrders.checkpoints', 'workOrders.reports', 'workOrders.reports.pictures', 'deliveryWaybillUpload',
         ])->findOrFail($id);
 
         $pictures = DeliveryPicture::where('ref_id', $delivery->id)->get();
 
         $pictures = $pictures->map(function ($pic) {
+            $pic->url = asset(ltrim($pic->file_path, '/'));
+            return $pic;
+        });
+
+        $delivery->deliveryWaybillUpload->map(function ($pic) {
             $pic->url = asset(ltrim($pic->file_path, '/'));
             return $pic;
         });
@@ -198,7 +204,7 @@ class DeliveryController extends BaseController
     {
         $customer = Customer::with(['creator', 'updater'])->findOrFail($customerID);
 
-        $prefix = 'UDO';
+        $prefix = 'DO';
         $desiredDate = Carbon::parse($deliveryDate);
         $timestamp = $desiredDate->format('ymd');
         $customerCode = $customer->code;
@@ -208,7 +214,7 @@ class DeliveryController extends BaseController
         $sequence = $countToday + 1;
         $sequencePart = str_pad($sequence, 3, '0', STR_PAD_LEFT);
 
-        return "{$customerCode}-{$timestamp}-{$sequence}";
+        return "{$prefix}-{$timestamp}-{$sequence}";
     }
 
     public function deliveryTypes()
@@ -450,7 +456,73 @@ class DeliveryController extends BaseController
         ])->get();
     }
 
+    public function getOutStandingWaybill()
+    {
+        return Delivery::with([
+            'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'workOrders', 'workOrders.driver', 'workOrders.second_driver',  'deliveryPlan.vendor', 'routes.destination.city', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1',
+            'routes.multiOrigin2', 'routes.destination.origin.city', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'customer', 'creator', 'updater', 'deliveryWaybills'
+        ])->get();
+    }
+
+    public function getDeliveryTracker()
+    {
+        $reports = Delivery::with([
+            'status',
+            'routes.destination',
+            'routes.deliveryType',
+            'deliveryPlan',
+            'deliveryPlan.nextCity',
+            'deliveryPlan.unit',
+            'workOrders',
+            'workOrders.workOrderEvents',
+            'workOrders.driver',
+            'workOrders.second_driver',
+            'deliveryPlan.vendor',
+            'routes.destination.city',
+            'routes.multiDest1',
+            'routes.multiDest2',
+            'routes.multiOrigin1',
+            'routes.multiOrigin2',
+            'routes.destination.origin.city',
+            'routes.voucherUssage.voucher.origin',
+            'routes.voucherUssage.voucher.destination',
+            'customer',
+            'creator',
+            'updater',
+            'workOrders.checkpoints'
+        ])->get();
+
+        $reports->each(function ($report) {
+            $report->workOrders->each(function ($workOrder) {
+                $workOrder->workOrderEvents->each(function ($event) {
+                    // Add a computed path attribute
+                    $event->path = asset($event->pic);
+                });
+            });
+        });
+
+        return $reports;
+    }
+
     public function showForDI($id)
+    {
+        $result = Delivery::with([
+            'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'deliveryPlan.vendor', 'routes.destination.city', 'routes.destination.origin.city', 'customer', 'creator', 'updater', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1', 'routes.multiOrigin2', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.type', 'workOrders.creator', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver'
+        ])->findOrFail($id);
+
+        return $result;
+    }
+
+    public function showForWaybill($id)
+    {
+        $result = Delivery::with([
+            'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'deliveryPlan.vendor', 'routes.destination.city', 'routes.destination.origin.city', 'customer', 'creator', 'updater', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1', 'routes.multiOrigin2', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.type', 'workOrders.creator', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver', 'deliveryWaybills',  'deliveryWaybillsExp', 'deliveryWaybillsExp.tracker', 'deliveryWaybillUpload', 'deliveryWaybillUpload', 'deliveryWaybillUpload.phase'
+        ])->findOrFail($id);
+
+        return $result;
+    }
+
+    public function showForTracker($id)
     {
         $result = Delivery::with([
             'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'deliveryPlan.vendor', 'routes.destination.city', 'routes.destination.origin.city', 'customer', 'creator', 'updater', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1', 'routes.multiOrigin2', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.type', 'workOrders.creator', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver'
@@ -462,7 +534,7 @@ class DeliveryController extends BaseController
     public function showForWO($id)
     {
         $result = Delivery::with([
-            'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'deliveryPlan.vendor', 'routes.destination.city', 'routes.destination.origin.city', 'customer', 'creator', 'updater', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1', 'routes.multiOrigin2', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.type', 'workOrders.creator', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver'
+            'status', 'routes.destination', 'routes.deliveryType', 'deliveryPlan', 'deliveryPlan.nextCity', 'deliveryPlan.unit', 'deliveryPlan.vendor', 'routes.destination.city', 'routes.destination.origin.city', 'customer', 'creator', 'updater', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin1', 'routes.multiOrigin2', 'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination', 'workOrders.type', 'workOrders.creator', 'workOrders.status', 'workOrders.expenses', 'workOrders.unit.vendor', 'workOrders.driver',
         ])->findOrFail($id);
 
         if ($result->deliveryPlan && $result->deliveryPlan->vendor) {
@@ -537,6 +609,19 @@ class DeliveryController extends BaseController
             'next_city'             => $request->next_city ?? null,
             'next_city_purpose'     => $request->next_city_purpose ?? null,
             'created_by'            => auth()->id(),
+        ]);
+
+        $getDelivery = Delivery::find($request->delivery_id);
+
+        UnitPlanningWorksheet::create([
+            'unit_id'        => $request->unit_id,
+            'date'           => $getDelivery->delivery_date,
+            'plan_data'      => 'Delivery',
+            'delivery_id'    => $request->delivery_id,
+            'maintenance_id' => null,
+            'remarks'        => null,
+            'created_by'     => auth()->id(),
+            'updated_by'     => auth()->id(),
         ]);
 
         return response()->json(['message' => 'Delivery plan created', 'data' => $plan], 201);

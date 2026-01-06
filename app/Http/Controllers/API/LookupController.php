@@ -5,13 +5,21 @@ namespace App\Http\Controllers\API;
 use App\Models\City;
 use App\Models\Customer;
 use App\Models\CustomerExpenseParam;
+use App\Models\DeliveryPhase;
 use App\Models\DeliveryPicture;
+use App\Models\DeliveryWaybill;
+use App\Models\DeliveryWaybillExpedition;
+use App\Models\DeliveryWaybillTracker;
+use App\Models\DeliveryWaybillUpload;
 use App\Models\Destination;
 use App\Models\RoutesVoucherUssage;
 use App\Models\RouteVoucher;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Models\WorkOrderCheckpoint;
+use App\Models\WorkOrderReport;
+use App\Models\WorkOrderReportPicture;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +62,13 @@ class LookupController extends BaseController
         ])->get();
 
         return $this->sendResponse($cities, 'City retrieved successfully');
+    }
+
+    public function listPhases(): JsonResponse
+    {
+        $cities = DeliveryPhase::get();
+
+        return $this->sendResponse($cities, 'Phase Data');
     }
 
     public function routeVoucher(): JsonResponse
@@ -211,6 +226,167 @@ class LookupController extends BaseController
 
         $create->update([
             'file_path' => $filepath,
+        ]);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function storeWaybill(Request $request)
+    {
+        $create = DeliveryWaybill::create([
+            'delivery_id'   => $request->delivery_id,
+            'type'          => $request->type,
+            'number'        => $request->number,
+            'quantity'      => $request->quantity,
+            'units'         => $request->units,
+            'remarks'       => $request->remarks,
+            'status'        => 'Draft',
+            'file_name'     => $request->file_name,
+            'file_path'     => null,
+            'created_date'  => now(),
+            'created_by'    => auth()->id()
+        ]);
+
+        $filepath = $this->storeBase64($request->base64, $request->file_name);
+
+        $create->update([
+            'file_path' => $filepath,
+        ]);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function uploadWaybill(Request $request)
+    {
+        $create = DeliveryWaybillUpload::create([
+            'delivery_id'           => $request->delivery_id,
+            'driver_id'             => $request->driver_id,
+            'upload_date'           => $request->upload_date,
+            'file_name'             => $request->file_name,
+            'delivery_phase_id'     => $request->delivery_phase_id,
+            'file_path'             => null,
+            'created_at'            => now(),
+            'created_by'            => auth()->id()
+        ]);
+
+        $filepath = $this->storeBase64($request->base64, $request->file_name);
+
+        $create->update([
+            'file_path' => $filepath,
+        ]);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function storeWaybillExpedition(Request $request)
+    {
+        $create = DeliveryWaybillExpedition::create([
+            'delivery_id'       => $request->delivery_id,
+            'courier'           => $request->courier,
+            'tracking_number'   => $request->tracking_number,
+            'sent_by'           => $request->sent_by,
+            'sent_date'         => $request->sent_date,
+            'remarks'           => $request->remarks,
+            'created_date'      => now(),
+            'created_by'        => auth()->id()
+        ]);
+
+        DeliveryWaybillTracker::create([
+            'delivery_waybill_expedition_id'   => $create->id,
+            'status'                            => "In Delivery Courier",
+            'remarks'                           => "Tracking Number " . $request->tracking_number,
+            'created_date'                      => now(),
+            'created_by'                        => auth()->id()
+        ]);
+
+        DeliveryWaybill::where('delivery_id', $request->delivery_id)
+            ->update(['status' => 'In Progress']);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function storeWaybillTracker(Request $request)
+    {
+        DeliveryWaybillTracker::create([
+            'delivery_waybill_expedition_id'   => $request->delivery_waybill_expedition_id,
+            'status'                            => $request->status,
+            'remarks'                           => $request->remarks,
+            'created_date'                      => now(),
+            'created_by'                        => auth()->id()
+        ]);
+
+        if ($request->status == 'Received by Operation') {
+            DeliveryWaybill::where('delivery_id', $request->delivery_id)
+                ->update(['status' => 'Final']);
+        }
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function finalizeWaybill(Request $request)
+    {
+        DeliveryWaybill::where('delivery_id', $request->delivery_id)
+            ->update(['status' => 'Final']);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+    public function updateCp(Request $request, $id)
+    {
+        $checkpoint = WorkOrderCheckpoint::find($id);
+
+        if (!$checkpoint) {
+            return response()->json(['message' => 'Checkpoint not found'], 404);
+        }
+
+        $filepath = $this->storeBase64($request->base64, $request->file_name);
+        $checkpoint->file_name          = $request->file_name;
+        $checkpoint->file_path          = $filepath;
+        $checkpoint->notes              = $request->notes;
+        $checkpoint->checkpoint_date    = now();
+        $checkpoint->status             = 'Submitted';
+
+        $checkpoint->save();
+
+        return response()->json([
+            'message' => 'Checkpoint updated successfully',
+            'data'    => $checkpoint
+        ]);
+    }
+
+    public function storeReport(Request $request)
+    {
+        $create = WorkOrderReport::create([
+            'work_order_id'   => $request->work_order_id,
+            'report_details'  => $request->report_details,
+            'report_date'     => $request->report_date,
+            'reported_by'     => auth()->id(),
+            'status'          => 'Pending',
+            'created_by'      => auth()->id(),
+            'created_at'      => now(),
+        ]);
+
+        $filepath = $this->storeBase64($request->base64, $request->file_name);
+
+        WorkOrderReportPicture::create([
+            'work_order_report_id' => $create->id,
+            'file_name'            => $request->file_name,
+            'file_path'            => $filepath,
+            'created_by'           => auth()->id(),
+            'created_at'           => now(),
+        ]);
+
+        return response()->json(['message' => 'Saved']);
+    }
+
+
+    public function updateReport(Request $request)
+    {
+        $create = WorkOrderReport::where('id', $request->id)->update([
+            'resolution_notes'   => $request->resolution_notes,
+            'resolved_by'        => auth()->id(),
+            'resolved_at'        => now(),
+            'status'             => 'Completed',
         ]);
 
         return response()->json(['message' => 'Saved']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\CustomerExpenseParam;
 use App\Models\Delivery;
 use App\Models\DeliveryPicture;
 use App\Models\DeliveryProblemNote;
@@ -19,6 +20,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\WorkOrderCalcExpense;
 use App\Models\VendorWorkOrder;
+use App\Models\WorkOrderAcceptance;
+use App\Models\WorkOrderCheckpoint;
+use App\Models\WorkOrderReport;
+use App\Models\WorkOrderRequest;
+use App\Models\WorkOrderRequestExpense;
+use App\Models\WorkOrderRoute;
 use Illuminate\Support\Facades\Storage;
 
 class WorkOrderController extends BaseController
@@ -34,9 +41,52 @@ class WorkOrderController extends BaseController
         return $getWO ? true : false;
     }
 
+    public function submitAcceptance(Request $request)
+    {
+        $acceptance = WorkOrderAcceptance::create([
+            'work_order_id'      => $request->work_order_id,
+            'acceptances_status' => $request->acceptances_status,
+            'acceptances_date'   => $request->acceptances_date, // will be cast to datetime
+            'remarks'            => $request->remarks,
+            'created_by'         => auth()->id(),
+        ]);
+
+        return response()->json($acceptance);
+    }
+
     public function index()
     {
         return WorkOrder::with(['status', 'type', 'unit', 'driver', 'expenses', 'creator', 'updater'])->paginate(20);
+    }
+
+    public function getDeliveryByUserID()
+    {
+        $userID = auth()->id();
+
+        return WorkOrder::where('driver_id', $userID)
+            ->with(['delivery', 'delivery.routes', 'delivery.routes', 'delivery.routes.multiDest1', 'delivery.routes.multiDest2', 'delivery.routes.multiOrigin1', 'delivery.routes.multiOrigin2', 'delivery.routes.voucherUssage.voucher.origin', 'delivery.routes.voucherUssage.voucher.destination', 'delivery.customer', 'woCal',  'woCal.expenseType', 'unit', 'driver', 'acceptance'])
+            ->paginate(20);
+    }
+
+    public function getReports()
+    {
+        $reports = WorkOrderReport::with([
+            'pictures',
+            'workOrder',
+            'workOrder.delivery',
+            'workOrder.unit',
+            'workOrder.driver',
+            'resolvedBy'
+        ])->get();
+
+        $reports->each(function ($report) {
+            $report->pictures = $report->pictures?->map(function ($pic) {
+                $pic->path = asset($pic->file_path);
+                return $pic;
+            });
+        });
+
+        return $reports;
     }
 
     public function getByStatus($id)
@@ -45,6 +95,14 @@ class WorkOrderController extends BaseController
             return WorkOrder::with(['status', 'type', 'unit', 'driver', 'expenses', 'creator', 'updater'])->paginate(20);
         }
         return WorkOrder::where('work_order_status', $id)->with(['status', 'type', 'unit', 'driver', 'expenses', 'creator', 'updater'])->paginate(20);
+    }
+
+    public function getUJValues($id)
+    {
+        $getConfigData = ExpenseType::where('is_di_config', 1)
+            ->orderBy('sequence', 'desc')
+            ->get(); // execute query
+        return $getConfigData;
     }
 
     public function store_bak(Request $request)
@@ -158,7 +216,9 @@ class WorkOrderController extends BaseController
             'workOrderEvents' => function ($query) {
                 $query->orderBy('delivery_phase_id');
             },
+            'checkpoints',
             'workOrderEvents.deliveryPhase',
+            'woCal',
             'workOrderEvents.createdBy',
             'vendorwo',
             'unit.vendor',
@@ -225,7 +285,7 @@ class WorkOrderController extends BaseController
     {
         //$vendor = Vendor::with(['creator', 'updater'])->findOrFail($vendorID);
 
-        $prefix = 'UWO';
+        $prefix = 'DI';
         $timestamp = now()->format('Ymd');
         $vendorCode = '';
 
@@ -242,6 +302,19 @@ class WorkOrderController extends BaseController
             $sequencePart = str_pad($sequence, 3, '0', STR_PAD_LEFT);
             return "{$prefix}-{$timestamp}-{$sequencePart}";
         }
+    }
+
+    private function generateWorkOderRequestCode()
+    {
+        //$vendor = Vendor::with(['creator', 'updater'])->findOrFail($vendorID);
+
+        $prefix = 'DIX';
+        $timestamp = now()->format('Ymd');
+        $today = now()->toDateString();
+        $countToday = WorkOrderRequest::whereDate('created_at', $today)->count();
+        $sequence = $countToday + 1;
+        $sequencePart = str_pad($sequence, 3, '0', STR_PAD_LEFT);
+        return "{$prefix}-{$timestamp}-{$sequencePart}";
     }
 
     public function getOutstandingOtherExpense($id)
@@ -318,7 +391,7 @@ class WorkOrderController extends BaseController
             'routes.deliveryType',
             'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination',
             'deliveryPlan',
-            'routes.secondaryOrigin.city', 'routes.multiDest1.city', 'routes.multiDest2.city', 'routes.multiDest3.city',
+            'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2',
             'deliveryProblem' => function ($q) {
                 $q->where('type', 'dest')
                     ->with('supportingDocs');
@@ -350,7 +423,7 @@ class WorkOrderController extends BaseController
             'routes.deliveryType',
             'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination',
             'deliveryPlan',
-            'routes.secondaryOrigin.city', 'routes.multiDest1.city', 'routes.multiDest2.city', 'routes.multiDest3.city',
+            'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2',
             'deliveryProblem' => function ($q) {
                 $q->where('type', 'site')
                     ->with('supportingDocs');
@@ -370,21 +443,20 @@ class WorkOrderController extends BaseController
     public function reconcile()
     {
         $deliveries = Delivery::with([
+            'deliveryWaybills',
             'status',
             'workOrders',
             'workOrders.unit',
             'workOrders.driver',
             'workOrders.workOrderEvents',
+            'workOrders.checkpoints',
             'workOrders.second_driver',
             'workOrders.old_driver',
             'workOrders.old_second_driver',
             'routes.destination',
             'routes.deliveryType',
             'deliveryPlan',
-            'routes.secondaryOrigin.city',
-            'routes.multiDest1.city',
-            'routes.multiDest2.city',
-            'routes.multiDest3.city',
+            'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2',
             'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination',
             'deliveryProblem.supportingDocs', // load semua dulu
             'deliveryPlan.unit',
@@ -438,7 +510,7 @@ class WorkOrderController extends BaseController
             'routes.destination',
             'routes.deliveryType',
             'routes.voucherUssage.voucher.origin', 'routes.voucherUssage.voucher.destination',
-            'routes.secondaryOrigin.city', 'routes.multiDest1.city', 'routes.multiDest2.city', 'routes.multiDest3.city',
+            'routes.multiOrigin1', 'routes.multiDest1', 'routes.multiDest2', 'routes.multiOrigin2',
             'deliveryProblem' => function ($q) {
                 $q->where('type', 'fleet')
                     ->with('supportingDocs');
@@ -469,9 +541,105 @@ class WorkOrderController extends BaseController
         return response()->json($deliveries);
     }
 
+    public function storeOtherDI(Request $request)
+    {
+        $originData = $request->origin;
+        $destinationData = $request->destination;
+        $amountData = $request->amount;
+
+        $workOrder = null;
+
+        DB::transaction(function () use ($request, $originData, $destinationData, &$workOrder, $amountData) {
+            $workOrder = WorkOrderRequest::create([
+                'number' => $this->generateWorkOderRequestCode(),
+                'unit_id' => (int) $request['unit_id'],
+                'driver_id' => (int) ($request['driver_id'] ?? 0),
+                'schedule' => (string) $request['schedule'],
+                'purpose' => (string) $request['purpose'],
+                'distance_value' => (float) $request['distance_value'],
+                'distance_display' => (string) $request['distance_display'],
+                'distance_calc_value' => (float) $request['distance_calc_value'],
+                'distance_calc_display' => (string) $request['distance_calc_display'],
+                'duration_value' => (float) $request['duration_value'],
+                'duration_display' => (string) $request['duration_display'],
+                'duration_calc_value' => (float) $request['duration_calc_value'],
+                'duration_calc_display' => (string) $request['duration_calc_display'],
+                'notes' => (string) $request['notes'] ?? null,
+                'status' => 'Submitted',
+                'created_by' => auth()->id(),
+            ]);
+
+            WorkOrderRoute::create([
+                'work_order_request_id' => $workOrder->id,
+                'route_type'            => 'origin',
+                'address_name'          => (string) $originData['address_name'],
+                'full_address'          => (string) $originData['full_address'],
+                'lat'                   => (float) $originData['lat'],
+                'lng'                   => (float) $originData['lng'],
+                'created_by'            => auth()->id(),
+            ]);
+
+            WorkOrderRoute::create([
+                'work_order_request_id' => $workOrder->id,
+                'route_type'            => 'destination',
+                'address_name'          => (string) $destinationData['address_name'],
+                'full_address'          => (string) $destinationData['full_address'],
+                'lat'                   => (float) $destinationData['lat'],
+                'lng'                   => (float) $destinationData['lng'],
+                'created_by'            => auth()->id(),
+            ]);
+
+            WorkOrderRequestExpense::create([
+                'work_order_request_id' => $workOrder->id,
+                'expense_type'          => 10,
+                'amount'                => $amountData['fuel_fee'] ?? 0,
+                'created_by'            => auth()->id(),
+            ]);
+
+            if (isset($amountData['toll_fee'])) {
+                WorkOrderRequestExpense::create([
+                    'work_order_request_id'     => $workOrder->id,
+                    'expense_type'              => 2,
+                    'amount'                    => $amountData['toll_fee'] ?? 0,
+                    'created_by'                => auth()->id(),
+                ]);
+            }
+
+            if (isset($amountData['driver_fee'])) {
+                WorkOrderRequestExpense::create([
+                    'work_order_request_id'     => $workOrder->id,
+                    'expense_type'              => 1,
+                    'amount'                    => $amountData['driver_fee'] ?? 0,
+                    'created_by'                => auth()->id(),
+                ]);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Work order request created successfully',
+            'data' => $workOrder
+        ], 201);
+    }
+
+    public function selectOtherDI($id)
+    {
+        return WorkOrderRequest::with('routes', 'expense', 'expense.expenseType', 'unit', 'driver')->findOrFail($id);
+    }
+
+    public function getAllOtherDI()
+    {
+        return WorkOrderRequest::with('routes', 'expense', 'expense.expenseType', 'unit', 'driver')->get();
+    }
+
+    public function getOutstandingOtherDI()
+    {
+        return WorkOrderRequest::where('status', 'Submitted')->with('routes', 'expense', 'expense.expenseType', 'unit', 'driver')->get();
+    }
+
     public function store(Request $request)
     {
         $data = $request->calculatedata;
+        $checkpointData = $request->checkpointData;
 
         $validated = $request->validate([
             'work_order_type_id' => 'required|integer',
@@ -487,58 +655,46 @@ class WorkOrderController extends BaseController
             'di_notes' => 'nullable|string'
         ]);
 
-        $workOrder = DB::transaction(function () use ($validated, $data) {
+        $workOrder = DB::transaction(function () use ($validated, $data, $checkpointData) {
             $validated['payment_status'] = 'unpaid';
-            $validated['created_by'] = auth()->id();
-            $validated['assigned_at'] = now();
-            $validated['code'] = $this->generateWorkOderCode(
+            $validated['created_by']     = auth()->id();
+            $validated['assigned_at']    = now();
+            $validated['trf_available']  = 0;
+            $validated['code']           = $this->generateWorkOderCode(
                 $validated['delivery_id'],
                 $validated['work_order_type_id']
             );
 
             $workOrder = WorkOrder::create($validated);
 
-            $total = ($data['driver_fee'] ?? 0)
-                + ($data['secondary_driver_fee'] ?? 0)
-                + ($data['delivery_fuel_price'] ?? 0)
-                + ($data['return_fuel_price'] ?? 0)
-                + ($data['load_fee'] ?? 0)
-                + ($data['unload_fee'] ?? 0)
-                + ($data['additional_fee'] ?? 0);
+            foreach ($data as $expense) {
+                WorkOrderCalcExpense::create([
+                    'work_order_id'         => $workOrder->id,
+                    'expense_type_id'       => $expense['expense_type_id'] ?? 0,
+                    'amount'                => $expense['amount'] ?? 0,
+                    'amount_multi_origin_1' => $expense['amount_multi_origin_1'] ?? 0,
+                    'amount_multi_origin_2' => $expense['amount_multi_origin_2'] ?? 0,
+                    'amount_multi_dest_1'   => $expense['amount_multi_dest_1'] ?? 0,
+                    'amount_multi_dest_2'   => $expense['amount_multi_dest_2'] ?? 0,
+                    'note'                  => $expense['note'] ?? "",
+                    'created_by'            => auth()->id(),
+                ]);
+            }
 
-            WorkOrderCalcExpense::create([
-                'work_order_id'        => $workOrder->id,
-                'driver_fee'           => $data['driver_fee'] ?? 0,
-                'secondary_driver_fee' => $data['secondary_driver_fee'] ?? 0,
-                'delivery_fuel_price'  => $data['delivery_fuel_price'] ?? 0,
-                'return_fuel_price'    => $data['return_fuel_price'] ?? 0,
-                'load_fee'             => $data['load_fee'] ?? 0,
-                'unload_fee'           => $data['unload_fee'] ?? 0,
-                'additional_fee'       => $data['additional_fee'] ?? 0,
-                'note'                 => $data['note'] ?? null,
-                'total'                => $total,
-                'created_by'           => auth()->id(),
-            ]);
-
-            $getDeliveryRoutes = DeliveryRoute::where('delivery_id', $validated['delivery_id'])->first();
-
-            // $eventData = [
-            //     ['work_order_id' => $workOrder->id, 'delivery_phase_id' => 2, 'target_time' => $getDeliveryRoutes->target_load_date, 'status' => 'not started'],
-            //     ['work_order_id' => $workOrder->id, 'delivery_phase_id' => 4, 'target_time' => $getDeliveryRoutes->target_load_complete_date, 'status' => 'not started'],
-            //     ['work_order_id' => $workOrder->id, 'delivery_phase_id' => 6, 'target_time' => $getDeliveryRoutes->target_unload_date, 'status' => 'not started'],
-            //     ['work_order_id' => $workOrder->id, 'delivery_phase_id' => 8, 'target_time' => $getDeliveryRoutes->target_unload_complete_date, 'status' => 'not started']
-            // ];
-
-            // $SLAeventData = [
-            //     ['work_order_id' => $workOrder->id, 'delivery_phase_id' => 5, 'target_duration_in_seconds' => $getDeliveryRoutes->sla, 'status' => 'not started'],
-            // ];
-
-            // WorkOrderEvent::insert($eventData);
-
-            // WorkOrderEvent::insert($SLAeventData);
+            foreach ($checkpointData as $checkpoint) {
+                WorkOrderCheckpoint::create([
+                    'work_order_id'     => $workOrder->id,
+                    'city_label'        => $checkpoint['city_label'],
+                    'lat'               => $checkpoint['lat'],
+                    'lng'               => $checkpoint['lng'],
+                    'checkpoint_label'  => $checkpoint['checkpoint_label'],
+                    'created_by'        => auth()->id(),
+                    'created_at'        => now(),
+                ]);
+            }
 
             Delivery::findOrFail($validated['delivery_id'])->update([
-                'status_id' => 2,
+                'status_id'  => 2,
                 'updated_by' => auth()->id(),
             ]);
 
@@ -679,6 +835,22 @@ class WorkOrderController extends BaseController
         return response()->json([
             'success' => true,
             'data'    => $deliveryProblem
+        ]);
+    }
+
+    public function processUJ($id)
+    {
+        $workOrder = WorkOrder::findOrFail($id);
+
+        $workOrder->update([
+            'trf_available' => true, // clearer than 1
+            'updated_by'    => auth()->id(),
+        ]);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'Work order updated successfully',
+            'workOrder' => $workOrder, // optional: return updated data
         ]);
     }
 

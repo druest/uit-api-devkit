@@ -76,4 +76,19 @@ class Delivery extends Model
     {
         return $this->hasOne(DeliveryPlan::class, 'delivery_id');
     }
+
+    public function deliveryWaybillUpload()
+    {
+        return $this->hasMany(DeliveryWaybillUpload::class, 'delivery_id');
+    }
+
+    public function deliveryWaybills()
+    {
+        return $this->hasMany(DeliveryWaybill::class, 'delivery_id');
+    }
+
+    public function deliveryWaybillsExp()
+    {
+        return $this->hasMany(DeliveryWaybillExpedition::class, 'delivery_id');
+    }
 }

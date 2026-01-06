@@ -9,8 +9,11 @@ class WorkOrderExpense extends Model
 {
     protected $fillable = [
         'work_order_id',
-        'destination_expense_id',
         'amount',
+        'dr_bank_name',
+        'dr_account_number',
+        'dr_account_name',
+        'company_account_id',
         'created_by',
         'updated_by',
     ];

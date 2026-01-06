@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Driver;
+use App\Models\DriverLoginData;
 
 class RegisterController extends BaseController
 {
@@ -47,5 +49,40 @@ class RegisterController extends BaseController
         } else {
             return $this->sendError('Unauthorised.', ['error' => 'Unauthorised']);
         }
+    }
+
+    // Login api
+    public function driverLogin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone_number' => 'required|string',
+            'token'        => 'required|string',
+        ]);
+
+        $driver = Driver::where('phone', $request->phone_number)
+            ->where('login_token', $request->token)
+            ->first();
+
+        if ($driver) {
+            $plainToken = $driver->createToken('DriverAPP')->plainTextToken;
+
+            $success = [
+                'token' => $plainToken,
+                'name'  => $driver->name,
+            ];
+
+            DriverLoginData::create([
+                'driver_id'   => $driver->id,
+                'token'       => $plainToken,
+                'login_date'  => now(),
+                'expired_date' => now()->addHours(2),
+                'status'      => 'active',
+                'created_by'  => $driver->id,
+            ]);
+
+            return $this->sendResponse($success, 'Driver login successfully.');
+        }
+
+        return $this->sendError('Unauthorised.', ['error' => 'Unauthorised']);
     }
 }

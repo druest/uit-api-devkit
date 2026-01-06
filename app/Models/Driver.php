@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable; // <-- important 
+use Laravel\Sanctum\HasApiTokens;
 
-class Driver extends Model
+class Driver extends Authenticatable
 {
-    use HasFactory;
+    use HasApiTokens, HasFactory;
 
     public $timestamps = false;
 
@@ -37,6 +39,7 @@ class Driver extends Model
         'emergency_name',
         'emergency_relation',
         'notes',
+        'login_token',
         'created_by',
         'updated_by',
     ];
